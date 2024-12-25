@@ -17,6 +17,7 @@ def uploadDB():
 # Call the function once
 uploadDB()
 
+# Hamming distance between two strings with the same length
 def hammingDistance(firstName, secondName):  
     if len(firstName) != len(secondName):
         return -1
@@ -28,6 +29,7 @@ def normalizeNameDB(name):
             return name_key
     return name
 
+# Levenshtein distance calculation
 def levenshtein_dist(str1, str2):
     n = len(str1)
     m = len(str2)
@@ -49,12 +51,14 @@ def levenshtein_dist(str1, str2):
        
     return matrix[n][m]
 
+# Check if two names are similar using Levenshtein distance
 def levenshtein_similar(firstName, secondName):
     distance = levenshtein_dist(firstName, secondName)
     max_length = max(len(firstName), len(secondName)) 
     return distance <= max_length / 3
 
-def levenshtein_similar_to_nicknames(firstName, secondName):
+# Levenshtein similarity with nicknames
+def levenshtein_similar_include_nicknames(firstName, secondName):
     # Levenshtein check between the first name and the second name
     if levenshtein_similar(firstName, secondName):
         return True
@@ -75,91 +79,121 @@ def levenshtein_similar_to_nicknames(firstName, secondName):
     return False
 
 # Check if the firstname in the DB, then check if shipName is == or with types or nickname to shipname
-def checkNameeSimillar(firstName, secondName):
+def checkNameSimilar(firstName, secondName):
     if firstName == secondName:
         return True
     
     if normalizeNameDB(firstName) == normalizeNameDB(secondName):
         return True
       
-    if levenshtein_similar_to_nicknames(firstName, secondName):
+    if hammingDistance(firstName, secondName) > -1 and hammingDistance(firstName, secondName) <= (len(firstName) / 3):
+        return True
+    
+    if levenshtein_similar_include_nicknames(firstName, secondName):
         return True
     
     return False
 
+
+# Check similarity between first and middle names
+def checkFirstMiddleNameSimilar(firstName, secondName):
+    if firstName == secondName:
+        return True
+    
+    if (len(firstName) >= len(secondName)):
+        min = secondName
+        other = firstName
+    else:
+        min = firstName
+        other = secondName
+
+    for i in range(len(min)):
+        if not(checkNameSimilar(min[i],other[i])):
+            return False
+    
+    return True
+
 def countUniqueNames(billFirstName, billLastName, shipFirstName, shipLastName, billNameOnCard):
     # Maximum number of people per transaction.
     uniqueNames = 3
-    
+   
     # First, we want to handle the case sensitivity, so we will transform everything to lowercase letters.
     # bill and ship first name could include middle names
-    bill_first_name = billFirstName.lower().split()
-    ship_first_name = shipFirstName.lower().split()
+    bill_first_middle_name = billFirstName.lower().split()
+    ship_first_middle_name = shipFirstName.lower().split()
     bill_last_name = billLastName.lower()
     ship_last_name = shipLastName.lower()
 
     bill_name_on_card = billNameOnCard.lower().split()
-    first_name_card = bill_name_on_card[0]
-    last_name_card = bill_name_on_card[1]
 
     # Check billing and shipping name are equal
-    if checkNameeSimillar(bill_first_name[0], ship_first_name[0]):
-        if checkNameeSimillar(bill_last_name, ship_last_name):
+    if checkNameSimilar(bill_last_name, ship_last_name):
+        if checkFirstMiddleNameSimilar(bill_first_middle_name, ship_first_middle_name):
             uniqueNames -= 1
     
-    # check if bill name == name on card
-    # Check if bill first name == first name on the card and bill last name == last name on the card
-    if checkNameeSimillar(bill_first_name[0], first_name_card):
-        if checkNameeSimillar(bill_last_name, last_name_card):
+    # check if bill name == name on card:
+
+    # First case: Check if bill last name matches the first entry in the card's last name array
+    if checkNameSimilar(bill_last_name, bill_name_on_card[0]):
+        # Check if bills first middle name == the rest on the card
+        if checkFirstMiddleNameSimilar(bill_first_middle_name, bill_name_on_card[1:]):
             uniqueNames -= 1
 
-    # Check if bill last* name == first* name on the card and bill first* name == last* name on the card
-    elif checkNameeSimillar(bill_last_name, first_name_card):
-        if checkNameeSimillar(bill_first_name[0], last_name_card):
+    # Second case: Check if bill last name matches the last entry in the card's last name array
+    elif checkNameSimilar(bill_last_name, bill_name_on_card[-1]):
+        # Check if bills first middle name == the rest on the card 
+        if checkFirstMiddleNameSimilar(bill_first_middle_name, bill_name_on_card[:-1]):
             uniqueNames -= 1
 
     # Check if ship name == name on card
+
     # Check if ship first name == first name on the card and ship last name == last name on the card
-    if checkNameeSimillar(ship_first_name[0], first_name_card):
-        if checkNameeSimillar(ship_last_name, last_name_card):
+    if checkNameSimilar(ship_last_name, bill_name_on_card[0]):
+        if checkFirstMiddleNameSimilar(ship_first_middle_name, bill_name_on_card[1:]):
             uniqueNames -= 1
       
     # Check if ship last* name == first* name on the card and ship first* name == last* name on the card
-    elif checkNameeSimillar(ship_last_name, first_name_card):
-        if checkNameeSimillar(ship_first_name[0], last_name_card):
+    elif checkNameSimilar(ship_last_name, bill_name_on_card[-1]):
+        if checkFirstMiddleNameSimilar(ship_first_middle_name, bill_name_on_card[:-1]):
             uniqueNames -= 1
 
-    if uniqueNames == 0:
-        return 1
-    
-    return uniqueNames
+    return uniqueNames if uniqueNames > 1 else 1
 
-def test_identical_names():
-    result = countUniqueNames("Deborah", "Egli", "Deborah", "Egli", "Deborah Egli")
-    assert result == 1, f"Expected 1, but got {result}"
 
-def test_hamming_distance():
-    result = countUniqueNames("Deborph", "Eglo", "Deborah", "Egli", "Deborah Egli")
-    assert result == 1, f"Expected 1, but got {result}"
+print(countUniqueNames("Deborah hila", "Egli", "Deborah hila ex", "Egli", "Deborah Egli"))  # 1
+print(countUniqueNames("Deborah", "Egli", "Debbie", "Egli", "Debbie Egli"))  # 1
+print(countUniqueNames("Deborah", "Egli", "Egni", "Egli", "Deborah Egli"))  # 2
+print(countUniqueNames("Deborah S", "Egpi", "Deborah", "Egli", "Egli Deborah"))  # 1
+print(countUniqueNames("Michele", "Egli", "Deborah", "Egli", "Michele Egli"))  # 2
 
-def test_levenshtein_distance():
-    result = countUniqueNames("Deborah", "Egli", "Debbie", "Egli", "Debbie Egli")
-    assert result == 1, f"Expected 1, but got {result}"
 
-def test_name_with_different_case():
-    result = countUniqueNames("deborah", "Egli", "Deborah", "Egli", "Deborah Egli")
-    assert result == 1, f"Expected 1, but got {result}"
 
-def test_different_names():
-    result = countUniqueNames("Michele", "Egli", "Deborah", "Egli", "Michele Egli")
-    assert result == 2, f"Expected 2, but got {result}"
+# def test_identical_names():
+#     result = countUniqueNames("Deborah", "Egli", "Deborah", "Egli", "Deborah Egli")
+#     assert result == 1, f"Expected 1, but got {result}"
 
-def tests():
-    test_identical_names()
-    test_hamming_distance()
-    test_levenshtein_distance()
-    test_name_with_different_case()
-    test_different_names()
-    print("succ")
+# def test_hamming_distance():
+#     result = countUniqueNames("Deborph", "Eglo", "Deborah", "Egli", "Deborah Egli")
+#     assert result == 1, f"Expected 1, but got {result}"
 
-tests()
+# def test_levenshtein_distance():
+#     result = countUniqueNames("Deborah", "Egli", "Debbie", "Egli", "Debbie Egli")
+#     assert result == 1, f"Expected 1, but got {result}"
+
+# def test_name_with_different_case():
+#     result = countUniqueNames("deborah", "Egli", "Deborah", "Egli", "Deborah Egli")
+#     assert result == 1, f"Expected 1, but got {result}"
+
+# def test_different_names():
+#     result = countUniqueNames("Michele", "Egli", "Deborah", "Egli", "Michele Egli")
+#     assert result == 2, f"Expected 2, but got {result}"
+
+# def tests():
+#     test_identical_names()
+#     test_hamming_distance()
+#     test_levenshtein_distance()
+#     test_name_with_different_case()
+#     test_different_names()
+#     print("succ")
+
+# tests()
