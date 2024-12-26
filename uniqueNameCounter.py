@@ -9,15 +9,19 @@ NAME_SIMILARITY_THRESHOLD = 3
 NickNames = {}
 
 def uploadDB():
-    # Start with upload the DB nicknames
-    with open('nicknames.txt', 'r') as file:
+    """
+    This function loads the nickname database from a text file and updates the NickNames dictionary.
+    Each line in the file contains a main name and its aliases separated by spaces.
+    The aliases are casefolded and stored as sets (sets of nicknames).
+    """
+    with open('nicknames_.txt', 'r') as file:
         for line in file:
             
             parts = line.split()
-            name_key = parts[0].casefold()
-            aliases = [aliase.casefold() for aliase in parts[1:]]
+            nameKey = parts[0].casefold()
+            aliases = {aliase.casefold() for aliase in parts[1:]}
 
-            NickNames[name_key] = aliases
+            NickNames[nameKey] = aliases
     
 # Call the function once
 uploadDB()
@@ -40,13 +44,29 @@ def hammingDistance(firstName: str, secondName: str) -> int:
         return -1
     return sum(firstName[i] != secondName[i] for i in range(len(firstName)))
 
-def normalizeNameDB(name: str) -> str:
-    for name_key, aliases in NickNames.items():
-        if name in aliases or name == name_key:
-            return name_key
-    return name
+def normalizeNameDB(name: str) -> set:
+    """
+    This function searches for the name in the NickNames dictionary and returns all matching names, including aliases.
+    If no match is found, it returns the name itself.
 
-def levenshtein_dist(str1: str, str2: str) -> int:
+    Parameters:
+    name (str): The name to search for its aliases.
+    
+    Returns:
+    set: A set of matching names/aliases, or a set containing the name itself.
+    """
+    matchedNames = set()
+
+    for nameKey, aliases in NickNames.items():
+        if name == nameKey or name in aliases:
+            matchedNames.add(nameKey)
+
+    if not matchedNames:
+        matchedNames.add(name)
+
+    return matchedNames
+
+def LevenshteinDistance(str1: str, str2: str) -> int:
     """
     Calculate the Levenshtein distance between two strings.
     The Levenshtein distance is the minimum number of single-character edits (insertions, deletions, or substitutions) 
@@ -81,69 +101,145 @@ def levenshtein_dist(str1: str, str2: str) -> int:
     return matrix[n][m]
 
 # Check if two names are similar using Levenshtein distance
-def levenshtein_similar(firstName: str, secondName: str) -> bool:
-    distance = levenshtein_dist(firstName, secondName)
+def levenshteinSimilar(firstName: str, secondName: str) -> bool:
+    """
+    This function checks if two names are similar based on Levenshtein distance.
+    The names are considered similar if the Levenshtein distance between them is 
+    within a defined threshold, based on the length of the names.
+
+    Parameters:
+    firstName (str): The first name.
+    secondName (str): The second name.
+
+    Returns:
+    bool: True if the names are similar based on the Levenshtein distance, otherwise False.
+    """
+    distance = LevenshteinDistance(firstName, secondName)
     max_length = max(len(firstName), len(secondName)) 
     return distance <= max_length / NAME_SIMILARITY_THRESHOLD
 
 # Levenshtein similarity with nicknames
 @lru_cache(maxsize= 128)
-def levenshtein_similar_include_nicknames(firstName: str, secondName: str):
+def levenshteinWithAliases(firstName: str, secondName: str):
+    """
+    This function checks if two names or their aliases are similar using Levenshtein distance.
+    It first checks if the two names are directly similar. If not, it checks if any alias
+    of either name matches the other name using Levenshtein distance.
+
+    Parameters:
+    firstName (str): The first name.
+    secondName (str): The second name.
+
+    Returns:
+    bool: True if the names or their aliases are similar based on the Levenshtein distance, otherwise False.
+    """
     # Levenshtein check between the first name and the second name
-    if levenshtein_similar(firstName, secondName):
+    if levenshteinSimilar(firstName, secondName):
         return True
     
-    key_name_first = normalizeNameDB(firstName)
-    key_name_second = normalizeNameDB(secondName)
-
+    keyNameFirst = normalizeNameDB(firstName)
+    keyNameSecond = normalizeNameDB(secondName)
     # For each alias of the first name, check if it matches the second name using Levenshtein
-    for alies in NickNames.get(key_name_first, []):
-        if levenshtein_similar(alies, secondName):
-            return True
+    for name in keyNameFirst:
+        for alies in NickNames.get(name, []):
+            if levenshteinSimilar(alies, secondName):
+                return True
 
     # For each alias of the second name, check if it matches the first name using Levenshtein
-    for alies in NickNames.get(key_name_second, []):
-        if levenshtein_similar(alies, firstName):
-            return True
+    for name in keyNameSecond:
+        for alies in NickNames.get(name, []):
+            if levenshteinSimilar(alies, firstName):
+                return True
 
     return False
 
-# Check if the firstname in the DB, then check if shipName is == or with types or nickname to shipname
 def checkWordSimilarity(firstName: str, secondName: str) -> bool:
     """ 
-    Check
+    This function checks if two names are similar by comparing them using multiple methods.
+    It checks if the names are equivalent, or if they are similar by their distance (e.g., using Hamming or Levenshtein distance).
+
+    Parameters:
+    firstName (str): The first name to compare.
+    secondName (str): The second name to compare.
+
+    Returns:
+    bool: True if the names are equivalent or similar, otherwise False.
     """
-    if checkName(firstName, secondName):
+    if NamesEquivalent(firstName, secondName):
         return True
     
-    if checkDistance(firstName, secondName):
+    if compareNamesByDistance(firstName, secondName):
         return True
     
     return False
 
+def NamesEquivalent(firstName: str, secondName: str) -> bool:
+    """
+    This function checks if two names are equivalent, either exactly or based on their aliases.
+    It compares both the names and their possible aliases from the database.
 
-def checkName(firstName: str, secondName: str) -> bool:
+    Parameters:
+    firstName (str): The first name to compare.
+    secondName (str): The second name to compare.
+
+    Returns:
+    bool: True if the names are equivalent, otherwise False.
+    """
     if firstName == secondName:
         return True
     
-    if normalizeNameDB(firstName) == normalizeNameDB(secondName):
+    firstNameMatches = normalizeNameDB(firstName)
+    secondNameMatches = normalizeNameDB(secondName)
+
+    if firstNameMatches & secondNameMatches:
         return True
+    
+    return False
 
-def checkDistance(firstName: str, secondName: str) -> bool:
+def compareNamesByDistance(firstName: str, secondName: str) -> bool:
+    """
+    This function compares two names using distance-based methods, such as Hamming and Levenshtein.
 
+    Parameters:
+    firstName (str): The first name to compare.
+    secondName (str): The second name to compare.
+
+    Returns:
+    bool: True if the names are similar based on distance, otherwise False.
+    """
     hammingDist = hammingDistance(firstName, secondName)
 
     if  hammingDist > -1 and  hammingDist <= (len(firstName) / NAME_SIMILARITY_THRESHOLD):
         return True
     
-    if levenshtein_similar_include_nicknames(firstName, secondName):
+    if levenshteinWithAliases(firstName, secondName):
         return True
 
+    return False
+
 # Check similarity between first and middle names
-def checkSimilarity(firstName: str, secondName: str):
+def checkSimilarity(firstName, secondName) -> bool:
+    """
+    This function checks if two names (or lists of names) are similar by comparing each part of the names.
+    It first checks for an exact match, then compares each component if the names are passed as lists of names.
+
+    Parameters:
+    firstName (str or list): The first name or a list of first names.
+    secondName (str or list): The second name or a list of second names.
+
+    Returns:
+    bool: True if the names are identical or similar, otherwise False.
+    """
+        
     if firstName == secondName:
         return True
     
+    if isinstance(firstName, str):
+        firstName = [firstName]  
+    
+    if isinstance(secondName, str):
+        secondName = [secondName]
+
     if (len(firstName) >= len(secondName)):
         min = secondName
         other = firstName
@@ -236,7 +332,7 @@ print(countUniqueNames("Michele", "Egli", "Deborah", "Egli", "Michele Egli"))  #
 #     result = countUniqueNames("Deborph", "Eglo", "Deborah", "Egli", "Deborah Egli")
 #     assert result == 1, f"Expected 1, but got {result}"
 
-# def test_levenshtein_distance():
+# def test_LevenshteinDistanceance():
 #     result = countUniqueNames("Deborah", "Egli", "Debbie", "Egli", "Debbie Egli")
 #     assert result == 1, f"Expected 1, but got {result}"
 
@@ -251,7 +347,7 @@ print(countUniqueNames("Michele", "Egli", "Deborah", "Egli", "Michele Egli"))  #
 # def tests():
 #     test_identical_names()
 #     test_hamming_distance()
-#     test_levenshtein_distance()
+#     test_LevenshteinDistanceance()
 #     test_name_with_different_case()
 #     test_different_names()
 #     print("succ")
