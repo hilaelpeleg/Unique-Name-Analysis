@@ -1,11 +1,12 @@
 # DB- https://github.com/brianary/Lingua-EN-Nickname/tree/main
 
-# Create Dictionary
 from functools import lru_cache
+import unittest
 
 # Define the global threshold for name similarity
 NAME_SIMILARITY_THRESHOLD = 3
 
+# Create Dictionary
 NickNames = {}
 
 def uploadDB():
@@ -100,7 +101,6 @@ def LevenshteinDistance(str1: str, str2: str) -> int:
        
     return matrix[n][m]
 
-# Check if two names are similar using Levenshtein distance
 def levenshteinSimilar(firstName: str, secondName: str) -> bool:
     """
     This function checks if two names are similar based on Levenshtein distance.
@@ -118,7 +118,6 @@ def levenshteinSimilar(firstName: str, secondName: str) -> bool:
     max_length = max(len(firstName), len(secondName)) 
     return distance <= max_length / NAME_SIMILARITY_THRESHOLD
 
-# Levenshtein similarity with nicknames
 @lru_cache(maxsize= 128)
 def levenshteinWithAliases(firstName: str, secondName: str):
     """
@@ -139,6 +138,7 @@ def levenshteinWithAliases(firstName: str, secondName: str):
     
     keyNameFirst = normalizeNameDB(firstName)
     keyNameSecond = normalizeNameDB(secondName)
+    
     # For each alias of the first name, check if it matches the second name using Levenshtein
     for name in keyNameFirst:
         for alies in NickNames.get(name, []):
@@ -217,7 +217,6 @@ def compareNamesByDistance(firstName: str, secondName: str) -> bool:
 
     return False
 
-# Check similarity between first and middle names
 def checkSimilarity(firstName, secondName) -> bool:
     """
     This function checks if two names (or lists of names) are similar by comparing each part of the names.
@@ -235,10 +234,10 @@ def checkSimilarity(firstName, secondName) -> bool:
         return True
     
     if isinstance(firstName, str):
-        firstName = [firstName]  
+        firstName = firstName.split()
     
     if isinstance(secondName, str):
-        secondName = [secondName]
+        secondName = secondName.split()
 
     if (len(firstName) >= len(secondName)):
         min = secondName
@@ -285,6 +284,9 @@ def countUniqueNames(billFirstName: str, billLastName: str, shipFirstName: str,
     shippingLastName = shipLastName.casefold()
     BillCardName = billNameOnCard.casefold().split()
 
+    lengthBillingLastName = len(billingLastName.split())
+    lengthShippingLastName = len(shippingLastName.split())
+
     # Check billing and shipping name are equal
     if checkSimilarity(billingLastName, shippingLastName) and checkSimilarity(billFirstNames, shipFirstNames):
             uniqueNames -= 1
@@ -293,63 +295,57 @@ def countUniqueNames(billFirstName: str, billLastName: str, shipFirstName: str,
 
     # First case: Check if bill last name matches the first entry in the card's name
     #  And if the bill's first name matches the remaining part of the card's name
-    if checkSimilarity(billingLastName, BillCardName[0]) and checkSimilarity(billFirstNames, BillCardName[1:]):
+    if checkSimilarity(billingLastName, BillCardName[:lengthBillingLastName]) and checkSimilarity(billFirstNames, BillCardName[(lengthBillingLastName -1 ):]):
             uniqueNames -= 1
 
     # Second case: Check if bill last name matches the last entry in the card's name
     # And if the bill's first name matches the remaining part of the card's name
-    elif checkSimilarity(billingLastName, BillCardName[-1]) and checkSimilarity(billFirstNames, BillCardName[:-1]):
+    elif checkSimilarity(billingLastName, BillCardName[(lengthBillingLastName -1):]) and checkSimilarity(billFirstNames, BillCardName[:lengthBillingLastName]):
             uniqueNames -= 1
 
     # Check if shipping name matches the name on the card:
 
     # First case: Check if ship last name matches the first entry in the card's name
     #  And if the ship's first name matches the remaining part of the card's name
-    if checkSimilarity(shippingLastName, BillCardName[0]) and checkSimilarity(shipFirstNames, BillCardName[1:]):
+    if checkSimilarity(shippingLastName, BillCardName[:lengthShippingLastName]) and checkSimilarity(shipFirstNames, BillCardName[(lengthShippingLastName -1 ):]):
             uniqueNames -= 1
       
     # Second case: Check if ship last name matches the last entry in the card's name
     # And if the ship's first name matches the remaining part of the card's name
-    elif checkSimilarity(shippingLastName, BillCardName[-1]) and checkSimilarity(shipFirstNames, BillCardName[:-1]):
+    elif checkSimilarity(shippingLastName, BillCardName[(lengthShippingLastName -1 ):]) and checkSimilarity(shipFirstNames, BillCardName[:lengthShippingLastName]):
             uniqueNames -= 1
 
     return uniqueNames if uniqueNames > 1 else 1
 
 
-print(countUniqueNames("Deborah hila", "Egli", "Deborah hila ex", "Egli", "Deborah Egli"))  # 1
-print(countUniqueNames("Deborah", "Egli", "Debbie", "Egli", "Debbie Egli"))  # 1
-print(countUniqueNames("Deborah", "Egli", "Egni", "Egli", "Deborah Egli"))  # 2
-print(countUniqueNames("Deborah S", "Egpi", "Deborah", "Egli", "Egli Deborah"))  # 1
-print(countUniqueNames("Michele", "Egli", "Deborah", "Egli", "Michele Egli"))  # 2
+class TestNameFunctions(unittest.TestCase):
+    def test_identical_names(self):
+        result = countUniqueNames("Deborah", "Egli", "Deborah", "Egli", "Deborah Egli")
+        self.assertEqual(result, 1)  # Expected result is 1
 
+    def test_hamming_distance(self):
+        result = countUniqueNames("Deborph", "Eglo", "Deborah", "Egli", "Deborah Egli")
+        self.assertEqual(result, 1)  # Expected result is 1
 
+    def test_LevenshteinDistance(self):
+        result = countUniqueNames("Deborah", "Egli", "Debbie", "Egli", "Debbie Egli")
+        self.assertEqual(result, 1)  # Expected result is 1
 
-# def test_identical_names():
-#     result = countUniqueNames("Deborah", "Egli", "Deborah", "Egli", "Deborah Egli")
-#     assert result == 1, f"Expected 1, but got {result}"
+    def test_name_with_different_case(self):
+        result = countUniqueNames("deborah", "Egli", "Deborah", "Egli", "Deborah Egli")
+        self.assertEqual(result, 1)  # Expected result is 1
 
-# def test_hamming_distance():
-#     result = countUniqueNames("Deborph", "Eglo", "Deborah", "Egli", "Deborah Egli")
-#     assert result == 1, f"Expected 1, but got {result}"
+    def test_name_with_different_case(self):
+        result = countUniqueNames("deborah", "Egli", "Deborah", "Egli", "Egli Deborah")
+        self.assertEqual(result, 1)  # Expected result is 1
 
-# def test_LevenshteinDistanceance():
-#     result = countUniqueNames("Deborah", "Egli", "Debbie", "Egli", "Debbie Egli")
-#     assert result == 1, f"Expected 1, but got {result}"
+    def test_different_names(self):
+        result = countUniqueNames("Michele", "Egli", "Deborah", "Egli", "Michele Egli")
+        self.assertEqual(result, 2)  # Expected result is 2
 
-# def test_name_with_different_case():
-#     result = countUniqueNames("deborah", "Egli", "Deborah", "Egli", "Deborah Egli")
-#     assert result == 1, f"Expected 1, but got {result}"
+    def test_different_names(self):
+        result = countUniqueNames("hila", "El peleg", "hila", "el peleg", "hila el deleg")
+        self.assertEqual(result, 2)  # Expected result is 2
 
-# def test_different_names():
-#     result = countUniqueNames("Michele", "Egli", "Deborah", "Egli", "Michele Egli")
-#     assert result == 2, f"Expected 2, but got {result}"
-
-# def tests():
-#     test_identical_names()
-#     test_hamming_distance()
-#     test_LevenshteinDistanceance()
-#     test_name_with_different_case()
-#     test_different_names()
-#     print("succ")
-
-# tests()
+if __name__ == '__main__':
+    unittest.main()
