@@ -1,4 +1,4 @@
-# Forter--task
+# Forter - task
 
 # Unique Name Counter
 This project is designed to count the number of unique names in a transaction, taking into account billing and shipping addresses as well as the name on the credit card. The function countUniqueNames compares the first and last names from the billing and shipping addresses, as well as the full name on the card, and returns the number of unique names.
